@@ -40,9 +40,11 @@ namespace PInvoke.Win32 {
     }
 }
 "@
+
+$Uri = 'http://192.168.122.175/test.php'
+
 while ($true) {
-  $Proc = [MainWindow]::GetForegroundWindow()
-  $mainProc = get-process | ? { $_.mainwindowhandle -eq $Proc }
+  $mainProc = get-process | ? { $_.mainwindowhandle -eq [MainWindow]::GetForegroundWindow() }
 
   if (([PInvoke.Win32.UserInput]::IdleTime).Seconds -ge 5) {$idle_flag = 1} else {$idle_flag = 0}
 
@@ -55,7 +57,7 @@ while ($true) {
       idle_flag = $idle_flag
   }
 
-  Invoke-WebRequest -Uri http://192.168.122.175/test.php -Method Post -Body $json
+  Invoke-WebRequest -Uri $Uri -Method Post -Body $json
 
-  sleep -Milliseconds 200
+  sleep -Seconds 1
 }
