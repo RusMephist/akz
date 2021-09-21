@@ -1,23 +1,61 @@
 Add-Type @"
   using System;
   using System.Runtime.InteropServices;
+  using System.Diagnostics;
+
   public class MainWindow {
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
 }
-"@
-$Proc = [MainWindow]::GetForegroundWindow()
-$mainProc = get-process | ? { $_.mainwindowhandle -eq $Proc }
 
-$json = @{
-    MainWindowHandle = $MainProc | Select -expand MainWindowHandle
-    timestamp = Get-Date -Format "yyMMddHHmmss"
-    user_login = $env:USERNAME
-    pc_name = $env:COMPUTERNAME
-    ip = (Get-NetIPConfiguration -InterfaceAlias Ethernet | Get-NetIPAddress -AddressFamily IPv4).IPv4Address
-    app_name = $MainProc | Select -expand processName
-    app_title = $MainProc | Select -expand MainWindowTItle
-    idle_flag = 0
+namespace PInvoke.Win32 {
+    public static class UserInput {
+        [DllImport("user32.dll")]
+        private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+        [StructLayout(LayoutKind.Sequential)]
+        private struct LASTINPUTINFO {
+            public uint cbSize;
+            public int dwTime;
+        }
+        public static DateTime LastInput {
+            get {
+                DateTime bootTime = DateTime.UtcNow.AddMilliseconds(-Environment.TickCount);
+                DateTime lastInput = bootTime.AddMilliseconds(LastInputTicks);
+                return lastInput;
+            }
+        }
+        public static TimeSpan IdleTime {
+            get {
+                return DateTime.UtcNow.Subtract(LastInput);
+            }
+        }
+        public static int LastInputTicks {
+            get {
+                LASTINPUTINFO lii = new LASTINPUTINFO();
+                lii.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
+                GetLastInputInfo(ref lii);
+                return lii.dwTime;
+            }
+        }
+    }
 }
+"@
+while ($true) {
+  $Proc = [MainWindow]::GetForegroundWindow()
+  $mainProc = get-process | ? { $_.mainwindowhandle -eq $Proc }
 
-Invoke-WebRequest -Uri http://192.168.122.175/test.php -Method Post -Body $json
+  if (([PInvoke.Win32.UserInput]::IdleTime).Seconds -ge 5) {$idle_flag = 1} else {$idle_flag = 0}
+
+  $json = @{
+      MainWindowHandle = $MainProc | Select -expand MainWindowHandle
+      user_login = $env:USERNAME
+      pc_name = $env:COMPUTERNAME
+      app_name = $MainProc | Select -expand processName
+      app_title = $MainProc | Select -expand MainWindowTItle
+      idle_flag = $idle_flag
+  }
+
+  Invoke-WebRequest -Uri http://192.168.122.175/test.php -Method Post -Body $json
+
+  sleep -Milliseconds 200
+}
