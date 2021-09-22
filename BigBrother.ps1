@@ -58,7 +58,7 @@ while ($true) {
       idle_flag = $idle_flag
   }
 
-  Invoke-WebRequest -Uri $uri -Method Post -Body $json -
+  Invoke-WebRequest -Uri $uri -Method Post -Body $json
 
   sleep -Seconds 1
 }
